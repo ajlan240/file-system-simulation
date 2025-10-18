@@ -1,0 +1,9 @@
+Inode (logical):
+- inode_number (4 bytes)
+- type (1 byte) 0=file,1=dir
+- file_size (8 bytes)
+- created_at (8 bytes epoch ms)
+- modified_at (8 bytes epoch ms)
+- direct_blocks[10] (10 * 4 bytes)
+- indirect_block (4 bytes)
+- flags/reserved/padding to 128 bytes

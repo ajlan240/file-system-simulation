@@ -1,0 +1,9 @@
+Module interaction:
+
+CLI  -> File API -> (Inode Directory, FileIO)
+                     |            |
+                     v            v
+               Block Bitmap     Persistence (read/write blocks)
+                     \            /
+                      \----------/
+                       disk.img (backing file)

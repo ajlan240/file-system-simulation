@@ -1,0 +1,6 @@
+Disk layout (logical):
+
+[Block 0]           Superblock
+[Blocks 1..I_END]   Inode table (INODE_COUNT * INODE_SERIALIZED_BYTES)
+[Next BMAP blocks]  Free block bitmap (packed bits covering data blocks)
+[Remaining blocks]  Data blocks (file data, directories, indirect tables)
