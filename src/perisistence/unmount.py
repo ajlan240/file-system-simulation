@@ -1,19 +1,16 @@
-# unmount.py
-# ------------------------------------------
-# Flush and save structures back to disk on unmount
-# ------------------------------------------
+# src/persistence/unmount.py
+# Unmount and optionally flush any in-memory structures (placeholder).
 
-import json
-from persistence.disk_io import write_block
+from typing import Dict, Any
 
-def unmount(metadata):
-    """Flush in-memory metadata back to disk"""
-    if not metadata.get("mounted"):
+def unmount() -> None:
+    """
+    Unmount the disk. Higher layers (inode table, bitmap) should have flushed
+    their state prior to calling this if needed.
+    """
+    from .mount import STATE
+    if not STATE.get("mounted"):
         print("[UNMOUNT] Disk is not mounted.")
         return
-
-    print("[UNMOUNT] Flushing structures to disk...")
-    meta_str = json.dumps(metadata).encode()
-    write_block(1, meta_str)
-    print("[UNMOUNT] Metadata saved to block 1.")
-    print("[UNMOUNT] Disk unmounted successfully.")
+    STATE["mounted"] = False
+    print("[UNMOUNT] Disk unmounted.")
