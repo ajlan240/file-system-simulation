@@ -1,63 +1,31 @@
-# src/cli/command_executor.py
-# Execute parsed commands by calling File API and File I/O.
+# src/cli/command_parser.py
 
-from src.file_api import create_file, delete_file, list_files, get_file_metadata, truncate_file
-from src.fileio import open_file, close_file, read_file, write_file, seek_file
-from .cli_utils import print_help
+def parse_command(raw: str):
+    """
+    Parse a raw command line string into (command, args).
 
-def execute_command(cmd: str, args: list):
-    if cmd == "help":
-        print_help()
+    Special handling for 'echo ... > filename':
+    - Groups all words before '>' as the text.
+    - Takes the token after '>' as the filename.
+    - If no '>' is present, everything after 'echo' is treated as text only.
+    """
+    parts = raw.strip().split()
+    if not parts:
+        return None, []
 
-    elif cmd == "ls":
-        files = list_files()
-        for f in files:
-            meta = get_file_metadata(f)
-            size = meta.get("size_bytes", 0)
-            ftype = meta.get("file_type", "file")
-            print(f"{f}\t{ftype}\t{size}B")
+    cmd = parts[0]
 
-    elif cmd == "touch":
-        if not args:
-            print("Usage: touch <filename>")
-            return
-        create_file(args[0])
+    if cmd == "echo":
+        # Case 1: echo without redirection
+        if ">" not in parts:
+            text = " ".join(parts[1:])
+            return "echo", [text]
 
-    elif cmd == "mkdir":
-        if not args:
-            print("Usage: mkdir <dirname>")
-            return
-        create_file(args[0], is_directory=True)
+        # Case 2: echo with redirection
+        idx = parts.index(">")
+        text = " ".join(parts[1:idx])  # everything before '>'
+        filename = parts[idx + 1] if idx + 1 < len(parts) else ""
+        return "echo", [text, ">", filename]
 
-    elif cmd == "cat":
-        if not args:
-            print("Usage: cat <filename>")
-            return
-        fd = open_file(args[0], "r")
-        data = read_file(fd, 10**6)  # read up to 1MB
-        print(data.decode("utf-8", errors="ignore"))
-        close_file(fd)
-
-    elif cmd == "echo":
-        if len(args) != 2 or args[1] is None:
-            print("Usage: echo <text> > <filename>")
-            return
-        text, filename = args
-        fd = open_file(filename, "w")
-        write_file(fd, text.encode("utf-8"))
-        close_file(fd)
-
-    elif cmd == "rm":
-        if not args:
-            print("Usage: rm <filename>")
-            return
-        delete_file(args[0])
-
-    elif cmd == "truncate":
-        if not args:
-            print("Usage: truncate <filename>")
-            return
-        truncate_file(args[0])
-
-    else:
-        print(f"Unknown command: {cmd}. Type 'help' for commands.")
+    # Default: return command and remaining args
+    return cmd, parts[1:]

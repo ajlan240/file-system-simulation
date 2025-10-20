@@ -4,7 +4,7 @@
 from typing import Optional
 from src.persistence.mount import STATE
 from src.persistence.disk_io import read_block, write_block
-from src.design.inode_serialization import INODE_SIZE, inode_to_bytes, bytes_to_inode
+from src.design.inode_serialisation import INODE_SIZE, inode_to_bytes, bytes_to_inode
 from src.design.architecture import Inode
 import math
 

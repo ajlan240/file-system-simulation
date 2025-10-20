@@ -1,64 +1,41 @@
 # src/persistence/disk_io.py
-# Low-level block I/O with dynamic BLOCK_SIZE set at mount time.
+# Safe block-level read/write with guard rails.
 
 import os
-from typing import Optional
 
-# These will be set by mount() based on the superblock
-DISK_FILE: Optional[str] = None
-BLOCK_SIZE: Optional[int] = None
+class DiskIO:
+    def __init__(self, disk_path: str, total_blocks: int, block_size: int):
+        self.disk_path = disk_path
+        self.total_blocks = total_blocks
+        self.block_size = block_size
+        self._fh = None
 
-def _ensure_ready():
-    if DISK_FILE is None or BLOCK_SIZE is None:
-        raise RuntimeError("Persistence not initialized. Call mount() first.")
+    def open(self):
+        if not os.path.exists(self.disk_path):
+            raise FileNotFoundError(f"Disk image not found: {self.disk_path}")
+        self._fh = open(self.disk_path, "r+b")
 
-def read_block(block_num: int) -> bytes:
-    """
-    Read a full block from the disk image.
-    Returns an exact BLOCK_SIZE bytes buffer.
-    """
-    _ensure_ready()
-    if block_num < 0:
-        raise ValueError("block_num must be non-negative")
-    with open(DISK_FILE, "rb") as f:
-        f.seek(block_num * BLOCK_SIZE)
-        data = f.read(BLOCK_SIZE)
-        # If the file is shorter than expected, pad with zeros
-        if len(data) < BLOCK_SIZE:
-            data = data + (b"\x00" * (BLOCK_SIZE - len(data)))
+    def close(self):
+        if self._fh:
+            self._fh.close()
+            self._fh = None
+
+    def _seek_block(self, block_number: int):
+        if block_number < 0 or block_number >= self.total_blocks:
+            raise ValueError(f"Invalid block number {block_number}")
+        offset = block_number * self.block_size
+        self._fh.seek(offset)
+
+    def read_block(self, block_number: int) -> bytes:
+        self._seek_block(block_number)
+        data = self._fh.read(self.block_size)
+        if len(data) != self.block_size:
+            raise IOError("Short read from disk image")
         return data
 
-def write_block(block_num: int, data: bytes, offset: int = 0) -> None:
-    """
-    Write bytes into a block at optional byte offset.
-    - If offset == 0 and len(data) <= BLOCK_SIZE, the block will be overwritten and padded.
-    - If 0 < offset < BLOCK_SIZE, the data will be written starting at that offset.
-    """
-    _ensure_ready()
-    if block_num < 0:
-        raise ValueError("block_num must be non-negative")
-    if offset < 0 or offset >= BLOCK_SIZE:
-        raise ValueError("offset must be in [0, BLOCK_SIZE-1]")
-    if offset + len(data) > BLOCK_SIZE:
-        raise ValueError("write exceeds block boundary: offset + len(data) > BLOCK_SIZE")
-
-    # Ensure the disk file exists and is large enough
-    os.makedirs(os.path.dirname(DISK_FILE), exist_ok=True) if os.path.dirname(DISK_FILE) else None
-    if not os.path.exists(DISK_FILE):
-        with open(DISK_FILE, "wb"):
-            pass
-
-    with open(DISK_FILE, "r+b") as f:
-        # Read current block into buffer to preserve bytes not overwritten
-        f.seek(block_num * BLOCK_SIZE)
-        existing = f.read(BLOCK_SIZE)
-        if len(existing) < BLOCK_SIZE:
-            existing = existing + (b"\x00" * (BLOCK_SIZE - len(existing)))
-
-        # Overlay the new data at offset
-        buf = bytearray(existing)
-        buf[offset:offset + len(data)] = data
-
-        # Write back the full block
-        f.seek(block_num * BLOCK_SIZE)
-        f.write(bytes(buf))
+    def write_block(self, block_number: int, data: bytes):
+        if len(data) != self.block_size:
+            raise ValueError("Data length must equal block size")
+        self._seek_block(block_number)
+        self._fh.write(data)
+        self._fh.flush()
