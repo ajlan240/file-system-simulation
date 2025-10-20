@@ -1,26 +1,26 @@
-import os
-import shutil
+# src/file_api/delete.py
+from src.persistence.mount import STATE
+from src.inode_directory.resolver import resolve, get_inode, remove_entry
+from src.inode_directory.inode_table import free_inode
+from src.block_bitmap.block_allocator import free_block
+from src.persistence.disk_io import write_block
+from .files import _truncate_inode_blocks
 
-def delete_file(path):
+def delete_file(filename: str) -> None:
     """
-    Deletes a file or an entire directory tree.
-
-    Args:
-        path (str): The path to the file or directory to delete.
-
-    Returns:
-        str: A success or error message.
+    Delete a file (or empty directory) from the simulated FS.
     """
-    try:
-        if not os.path.exists(path):
-            return f"Error: Path '{path}' not found."
+    if not STATE.get("mounted"):
+        raise RuntimeError("Disk not mounted. Call mount() first")
 
-        if os.path.isfile(path):
-            os.remove(path)
-            return f"File deleted: {path}"
-        elif os.path.isdir(path):
-            shutil.rmtree(path)
-            return f"Directory deleted: {path}"
-    except (OSError, shutil.Error) as e:
-        return f"Error deleting '{path}': {e}"
+    inum = resolve(filename)
+    if inum is None:
+        raise FileNotFoundError(f"'{filename}' not found")
 
+    inode = get_inode(inum)
+    if getattr(inode, "file_type", "file") == "file":
+        _truncate_inode_blocks(inode)
+        inode.file_size = 0
+
+    remove_entry(filename)
+    free_inode(inum)
